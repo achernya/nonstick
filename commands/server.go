@@ -3,14 +3,15 @@ package commands
 import (
 	"fmt"
 	"html/template"
-	"log"
 	"net"
 	"net/http"
 	"os"
-
+		
 	"github.com/achernya/nonstick/frontend"
+	"github.com/achernya/nonstick/pamsocket"
+	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v2"
-
+	
 	vueglue "github.com/torenware/vite-go"
 	tmpls "github.com/achernya/nonstick/template" 
 )
@@ -22,7 +23,7 @@ var t *template.Template
 func outboundIP() net.IP {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("Could not connect to well-known IP, do you have network?")
 	}
 	defer conn.Close()
 
@@ -39,7 +40,7 @@ func index(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := t.ExecuteTemplate(w, "index.tmpl", vue); err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("Could not execute template")
 	}
 }
 
@@ -78,7 +79,7 @@ func serve(c *cli.Context) error {
 
 	t, err = template.New("").ParseFS(tmpls.Fs, "*")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msg("Invalid templates")
 	}
 	
 	mux := http.NewServeMux()
@@ -88,7 +89,7 @@ func serve(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Serving files from %q", config.URLPrefix)
+	log.Info().Msgf("Serving files from %q", config.URLPrefix)
 	mux.Handle(config.URLPrefix, fsHandler)
 
 	if config.Environment == "production" {
@@ -96,11 +97,16 @@ func serve(c *cli.Context) error {
 	} else {
 		mux.Handle("/vite.svg", http.HandlerFunc(devserverRedirect))
 	}
+	mux.Handle("/pamws", &pamsocket.PamSocket{
+		Service: "google-authenticator",
+		ConfDir: "pam.d/",
+	})
+
 	mux.Handle("/", http.HandlerFunc(index))
 
 	port := c.String("port")
 
-	log.Printf("Listening on %s", port)
+	log.Info().Msgf("Listening on %s", port)
 	http.ListenAndServe(":"+port, mux)
 
 	return nil
