@@ -6,18 +6,18 @@ import (
 
 var Commands = []*cli.Command{
 	{
-		Name: "serve",
-		Usage: "Start web server",
+		Name:   "serve",
+		Usage:  "Start web server",
 		Action: serve,
 		Flags: []cli.Flag{
 			&cli.IntFlag{
 				Name: "port",
-				Required: true,
+				//Required: true,
 			},
 			&cli.StringFlag{
-				Name: "env",
+				Name:  "env",
 				Value: "dev",
-				Usage: "Environment to run, either `dev`, or `prod`",
+				Usage: "Environment to run, either 'dev', or 'prod'",
 			},
 		},
 	},

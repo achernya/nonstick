@@ -4,9 +4,9 @@ import (
 	"log"
 	"os"
 	"runtime/debug"
-	
-	"github.com/urfave/cli/v2"
+
 	"github.com/achernya/nonstick/commands"
+	"github.com/urfave/cli/v2"
 )
 
 func main() {
@@ -20,5 +20,7 @@ func main() {
 	app.Version = bi.Main.Version
 	app.Commands = commands.Commands
 
-	app.Run(os.Args)
+	if err := app.Run(os.Args); err != nil {
+		log.Fatal(err)
+	}
 }

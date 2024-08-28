@@ -7,14 +7,17 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"regexp"
 
+	"github.com/achernya/nonstick/frontend"
 	"github.com/urfave/cli/v2"
 
 	vueglue "github.com/torenware/vite-go"
+	tmpls "github.com/achernya/nonstick/template" 
 )
 
 var vue *vueglue.VueGlue
+
+var t *template.Template
 
 func outboundIP() net.IP {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
@@ -22,33 +25,27 @@ func outboundIP() net.IP {
 		log.Fatal(err)
 	}
 	defer conn.Close()
-	
+
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
-	
+
 	return localAddr.IP
 }
 
 func index(w http.ResponseWriter, r *http.Request) {
-	re := regexp.MustCompile(`^/([^.]+)\.(svg|ico|jpg)$`)
-	matches := re.FindStringSubmatch(r.RequestURI)
-	if matches != nil {
-		if vue.Environment == "development" {
-			log.Printf("vite logo requested")
-			url := vue.BaseURL + r.RequestURI
-			http.Redirect(w, r, url, http.StatusPermanentRedirect)
-			return
-		}
-	}
-	
-	t, err := template.New("").ParseFS(vue.DistFS, "*.tmpl")
-	if err != nil {
-		log.Fatal(err)
+	// Toplevel matches everything, so ensure this is a real match.
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
 	}
 
 	if err := t.ExecuteTemplate(w, "index.tmpl", vue); err != nil {
 		log.Fatal(err)
 	}
+}
 
+func devserverRedirect(w http.ResponseWriter, r *http.Request) {
+	url := vue.BaseURL + r.RequestURI
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
 func serve(c *cli.Context) error {
@@ -56,34 +53,36 @@ func serve(c *cli.Context) error {
 	switch env := c.String("env"); env {
 	case "dev":
 		config = &vueglue.ViteConfig{
-			Environment: "development",
-			AssetsPath:  "frontend",
-			EntryPoint:  "src/main.js",
-			FS:          os.DirFS("frontend"),
+			Environment:     "development",
+			AssetsPath:      "frontend",
+			EntryPoint:      "src/main.js",
+			FS:              os.DirFS("frontend"),
+			DevServerDomain: outboundIP().String(),
 		}
 	case "prod":
 		config = &vueglue.ViteConfig{
 			Environment: "production",
 			AssetsPath:  "dist",
 			EntryPoint:  "src/main.js",
-			FS:          os.DirFS("dist"),
+			FS:          frontend.Fs,
 		}
 	default:
 		return fmt.Errorf("Unknown environment %q", env)
 	}
 
-	port := c.String("port")
-	config.DevServerDomain = outboundIP().String()
-	//config.DevServerPort = port
-	
 	glue, err := vueglue.NewVueGlue(config)
 	if err != nil {
 		return err
 	}
 	vue = glue
 
-	mux := http.NewServeMux()
+	t, err = template.New("").ParseFS(tmpls.Fs, "*")
+	if err != nil {
+		log.Fatal(err)
+	}
 	
+	mux := http.NewServeMux()
+
 	// Set up a file server for our assets.
 	fsHandler, err := glue.FileServer()
 	if err != nil {
@@ -92,11 +91,17 @@ func serve(c *cli.Context) error {
 	log.Printf("Serving files from %q", config.URLPrefix)
 	mux.Handle(config.URLPrefix, fsHandler)
 
+	if config.Environment == "production" {
+		mux.Handle("/vite.svg", fsHandler)
+	} else {
+		mux.Handle("/vite.svg", http.HandlerFunc(devserverRedirect))
+	}
 	mux.Handle("/", http.HandlerFunc(index))
 
-	
+	port := c.String("port")
+
 	log.Printf("Listening on %s", port)
-	http.ListenAndServe(":" + port, mux)
-	
+	http.ListenAndServe(":"+port, mux)
+
 	return nil
 }
