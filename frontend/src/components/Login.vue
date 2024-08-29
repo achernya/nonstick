@@ -12,15 +12,15 @@ function wsUrl(path = "/pamws") {
 }
 
 function onConnect() {
-  connect.value = true
+    connect.value = true
     websocket = new WebSocket(wsUrl());
-  websocket.onopen =  (event) => {
-    console.log("Connected")
-  };
-  websocket.onmessage = (event) => {
-    console.log(event.data)
-    items.value.push(JSON.parse(event.data));
-  };
+    websocket.onopen = (event) => {
+	console.log("Connected")
+    };
+    websocket.onmessage = (event) => {
+	console.log(event.data)
+	items.value.push(JSON.parse(event.data));
+    };
 }
 
 function toWebsocket(e) {
