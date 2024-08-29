@@ -55,7 +55,7 @@ func serve(c *cli.Context) error {
 	case "dev":
 		config = &vueglue.ViteConfig{
 			Environment:     "development",
-			AssetsPath:      "frontend",
+			AssetsPath:      "src/assets",
 			EntryPoint:      "src/main.js",
 			FS:              os.DirFS("frontend"),
 			DevServerDomain: outboundIP().String(),
@@ -93,9 +93,9 @@ func serve(c *cli.Context) error {
 	mux.Handle(config.URLPrefix, fsHandler)
 
 	if config.Environment == "production" {
-		mux.Handle("/vite.svg", fsHandler)
+		mux.Handle("/nonstick.svg", fsHandler)
 	} else {
-		mux.Handle("/vite.svg", http.HandlerFunc(devserverRedirect))
+		mux.Handle("/nonstick.svg", http.HandlerFunc(devserverRedirect))
 	}
 	mux.Handle("/pamws", &pamsocket.PamSocket{
 		Service: "google-authenticator",
