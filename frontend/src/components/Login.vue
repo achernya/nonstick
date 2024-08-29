@@ -1,18 +1,19 @@
 <script setup>
 import { ref } from 'vue'
 
-defineProps({
-})
-
-
 const connect = ref(0)
 const items = ref([])
 
 var websocket;
 
+function wsUrl(path = "/pamws") {
+    const protocol = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
+    return protocol + '//' + location.host + path;
+}
+
 function onConnect() {
   connect.value = true
-  websocket = new WebSocket("ws://192.168.1.87:8080/pamws");
+    websocket = new WebSocket(wsUrl());
   websocket.onopen =  (event) => {
     console.log("Connected")
   };
