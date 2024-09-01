@@ -7,8 +7,10 @@ const items = ref([])
 var websocket;
 
 function wsUrl(path = "/api/pamws") {
+    var params = new URL(document.location).searchParams;
+    const challenge = params.get("login_challenge")
     const protocol = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
-    return protocol + '//' + location.host + path;
+    return protocol + '//' + location.host + path + "?login_challenge=" + challenge;
 }
 
 function onConnect() {

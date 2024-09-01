@@ -97,13 +97,20 @@ func serve(c *cli.Context) error {
 	r.Use(csrfMiddleware)
 	
 	api := r.PathPrefix("/api").Subrouter()
+	var flow pamsocket.LoginFlow
+	switch c.String("login_flow") {
+	case "hydra":
+		flow = NewOryHydraFlow()
+	case "noop":
+		flow = &pamsocket.NoopFlow{}
+	}
 	api.Handle("/pamws", &pamsocket.PamSocket{
 		Service: "google-authenticator",
 		ConfDir: "pam.d/",
-		Flow: &pamsocket.NoopFlow{},
+		Flow: flow,
 	}).Methods("GET")
 
-	r.HandleFunc("/", index)
+	r.HandleFunc("/login", index)
 
 	port := c.String("port")
 
