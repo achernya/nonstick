@@ -12,12 +12,19 @@ var Commands = []*cli.Command{
 		Flags: []cli.Flag{
 			&cli.IntFlag{
 				Name: "port",
-				//Required: true,
+				Required: true,
 			},
 			&cli.StringFlag{
 				Name:  "env",
 				Value: "dev",
 				Usage: "Environment to run, either 'dev', or 'prod'",
+			},
+			&cli.StringFlag{
+				Name: "csrf_secret",
+				Value: "",
+				Required: true,
+				EnvVars: []string{"NONSTICK_CSRF_SECRET"},
+				Usage: "32-byte secret string for CSRF protection",
 			},
 		},
 	},

@@ -6,12 +6,14 @@ import (
 	"net"
 	"net/http"
 	"os"
-		
+
 	"github.com/achernya/nonstick/frontend"
 	"github.com/achernya/nonstick/pamsocket"
+	"github.com/gorilla/mux"
+	"github.com/gorilla/csrf"
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v2"
-	
+
 	vueglue "github.com/torenware/vite-go"
 	tmpls "github.com/achernya/nonstick/template" 
 )
@@ -33,12 +35,6 @@ func outboundIP() net.IP {
 }
 
 func index(w http.ResponseWriter, r *http.Request) {
-	// Toplevel matches everything, so ensure this is a real match.
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-
 	if err := t.ExecuteTemplate(w, "index.tmpl", vue); err != nil {
 		log.Fatal().Err(err).Msg("Could not execute template")
 	}
@@ -82,7 +78,7 @@ func serve(c *cli.Context) error {
 		log.Fatal().Err(err).Msg("Invalid templates")
 	}
 	
-	mux := http.NewServeMux()
+	r := mux.NewRouter()
 
 	// Set up a file server for our assets.
 	fsHandler, err := glue.FileServer()
@@ -90,24 +86,30 @@ func serve(c *cli.Context) error {
 		return err
 	}
 	log.Info().Msgf("Serving files from %q", config.URLPrefix)
-	mux.Handle(config.URLPrefix, fsHandler)
+	r.PathPrefix(config.URLPrefix).Handler(fsHandler)
 
-	if config.Environment == "production" {
-		mux.Handle("/nonstick.svg", fsHandler)
-	} else {
-		mux.Handle("/nonstick.svg", http.HandlerFunc(devserverRedirect))
+	csrfOptions := []csrf.Option{}
+	if config.Environment == "development" {
+		csrfOptions = append(csrfOptions, csrf.Secure(false))
 	}
-	mux.Handle("/pamws", &pamsocket.PamSocket{
+	csrfMiddleware := csrf.Protect([]byte(c.String("csrf_secret")),
+		csrfOptions...)
+	r.Use(csrfMiddleware)
+	
+	api := r.PathPrefix("/api").Subrouter()
+	api.Handle("/pamws", &pamsocket.PamSocket{
 		Service: "google-authenticator",
 		ConfDir: "pam.d/",
-	})
+	}).Methods("GET")
 
-	mux.Handle("/", http.HandlerFunc(index))
+	r.HandleFunc("/", index)
 
 	port := c.String("port")
 
 	log.Info().Msgf("Listening on %s", port)
-	http.ListenAndServe(":"+port, mux)
-
-	return nil
+	src := &http.Server{
+		Handler: r,
+		Addr: ":"+port,
+	}
+	return src.ListenAndServe()
 }

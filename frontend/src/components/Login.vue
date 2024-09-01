@@ -6,7 +6,7 @@ const items = ref([])
 
 var websocket;
 
-function wsUrl(path = "/pamws") {
+function wsUrl(path = "/api/pamws") {
     const protocol = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
     return protocol + '//' + location.host + path;
 }
