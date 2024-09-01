@@ -29,6 +29,28 @@ type toClient struct {
 	Message string
 }
 
+type LoginFlow interface {
+	// PreLogin is run before the sign-in flow. It may conclude
+	// the sign-in flow is unnecessary, and return a URL to
+	// redirect to. If an empty URL is returned, the login flow
+	// should proceed.
+	PreLogin(r *http.Request) (string, error)
+	// Authenticated is run after the sign-in flow, to indicate
+	// that the given username has been authenticated. This
+	// function should return a URL to redirect to.
+	Authenticated(r *http.Request, username string) (string, error)
+}
+
+type NoopFlow struct{}
+
+func (*NoopFlow) PreLogin(*http.Request) (string, error) {
+	return "", nil
+}
+
+func (*NoopFlow) Authenticated(*http.Request, string) (string, error) {
+	return "/authenticated", nil
+}
+
 // PamSocket implements a WebSocket-based PAM session. PAM is
 // transactional, so running it over a WebSocket guarantees that all
 // messages between the client (browser) and server are sent to the
@@ -44,6 +66,10 @@ type PamSocket struct {
 	// ConfDir is the directory where the PAM service
 	// configurations live. By default, this is `/etc/pam.d/`.
 	ConfDir string
+	// Flow is a series of functions that are called as part of
+	// the login process. If you do not need to customize the
+	// login process, use NoopFlow.
+	Flow LoginFlow
 }
 
 // session represents a single PAM session, bound to a websocket.Conn
@@ -113,6 +139,13 @@ func (s *session) RespondPAM(style pam.Style, m string) (string, error) {
 	return "", nil
 }
 
+func (s *session) writeErr(message string) {
+	s.conn.WriteJSON(toClient{
+		Type: "Error",
+		Message: message,
+	})
+}
+
 var upgrader = websocket.Upgrader{
     ReadBufferSize:  1024,
     WriteBufferSize: 1024,
@@ -127,13 +160,26 @@ func (p *PamSocket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Ensure the connection is closed when this function ends.
 	defer conn.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	s := &session{
 		conn: conn,
 		clientMsgs: make(chan fromClient, 1),
 	}
+	
+	redirect, err := p.Flow.PreLogin(r)
+	if err != nil {
+		s.writeErr(err.Error())
+		return
+	}
+	if redirect != "" {
+		conn.WriteJSON(toClient{
+			Type: "Redirect",
+			Message: redirect,
+		})
+		return
+	}
+	
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	
 	go s.readFromClient(ctx, conn)
 
@@ -149,16 +195,26 @@ func (p *PamSocket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err = t.Authenticate(0)
 	if err != nil {
 		log.Info().Err(err).Msg("Could not authenticate user")
-		conn.WriteJSON(toClient{
-			Type: "Error",
-			Message: "Authentication failed.",
-		})
+		s.writeErr("Authentication failed.")
 		return
 	}
 
+	username, err := t.GetItem(pam.User)
+	if err != nil {
+		log.Error().Err(err).Msg("Could not retrieve username")
+		s.writeErr("Internal error")
+		return
+	}
+	log.Info().Msgf("Authenticated %q", username)
+	
+	redirect, err = p.Flow.Authenticated(r, username)
+	if err != nil {
+		s.writeErr(err.Error())
+		return
+	}
 	conn.WriteJSON(toClient{
 		Type: "Redirect",
-		Message: "http://notreallol/",
+		Message: redirect,
 	})
-	log.Info().Msg("Successfully authenticated")
+	log.Info().Msgf("Sent redirect for %q", username)
 }

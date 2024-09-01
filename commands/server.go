@@ -100,6 +100,7 @@ func serve(c *cli.Context) error {
 	api.Handle("/pamws", &pamsocket.PamSocket{
 		Service: "google-authenticator",
 		ConfDir: "pam.d/",
+		Flow: &pamsocket.NoopFlow{},
 	}).Methods("GET")
 
 	r.HandleFunc("/", index)
