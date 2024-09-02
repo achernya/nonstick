@@ -101,7 +101,7 @@ func (o *OryHydraFlow) AcceptConsent(r *http.Request) (string, error) {
 	req.SetGrantScope(consentResp.RequestedScope)
 	req.SetGrantAccessTokenAudience(consentResp.RequestedAccessTokenAudience)
 	req.SetRemember(true)
-	req.SetRememberFor(30)
+	req.SetRememberFor(3600)
 	acceptResp, _, err := o.client.OAuth2API.AcceptOAuth2ConsentRequest(ctx).
 		ConsentChallenge(consentChallenge).
 		AcceptOAuth2ConsentRequest(*req).

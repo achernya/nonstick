@@ -104,15 +104,15 @@ func (s *session) readFromClient(ctx context.Context, conn *websocket.Conn) {
 	for {
 		msg := fromClient{}
 		err := conn.ReadJSON(&msg)
+		select {
+		case <-ctx.Done():
+			return
+		case s.clientMsgs <- msg:
+		}
 		if err != nil {
 			log.Error().Err(err).Msg("ReadJSON failed")
 			conn.Close()
-			break
-		}
-		select {
-		case <-ctx.Done():
-			break
-		case s.clientMsgs <- msg:
+			return
 		}
 	}
 }

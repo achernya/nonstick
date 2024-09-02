@@ -11,6 +11,7 @@ import (
 	"github.com/achernya/nonstick/pamsocket"
 	"github.com/gorilla/csrf"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/sessions"
 	"github.com/joho/godotenv"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
@@ -58,10 +59,27 @@ func renderUserInfo(w http.ResponseWriter, r *http.Request, user goth.User) {
 
 }
 
+func respondWithError(w http.ResponseWriter, r *http.Request, message string) {
+	merged := struct {
+		*vueglue.VueGlue
+		Message string
+	}{
+		vue,
+		message,
+	}
+
+	w.WriteHeader(http.StatusBadRequest)
+	if err := t.ExecuteTemplate(w, "error.tmpl", merged); err != nil {
+		log.Fatal().Err(err).Msg("Could not execute template")
+	}
+
+}
+
 func appCallback(w http.ResponseWriter, r *http.Request) {
 	user, err := gothic.CompleteUserAuth(w, r)
 	if err != nil {
 		log.Error().Err(err).Msg("Got invalid auth callback")
+		respondWithError(w, r, err.Error())
 		return
 	}
 	renderUserInfo(w, r, user)
@@ -81,6 +99,9 @@ func appReauth(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func appIsLoggedIn(w http.ResponseWriter, r *http.Request) {
+}
+
 func devserverRedirect(w http.ResponseWriter, r *http.Request) {
 	url := vue.BaseURL + r.RequestURI
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
@@ -94,6 +115,10 @@ func serve(c *cli.Context) error {
 			log.Fatal().Err(err).Msg(".env file failed to load!")
 		}
 	}
+
+	store := sessions.NewCookieStore([]byte(os.Getenv("SESSION_SECRET")))
+	gothic.Store = store
+	
 	port := c.String("port")
 
 	// Common initialization to serve Vite/Vue.
@@ -177,6 +202,7 @@ func serve(c *cli.Context) error {
 		redirect, err := flow.AcceptConsent(r)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to accept consent")
+			respondWithError(w, r, err.Error())
 			return
 		}
 		http.Redirect(w, r, redirect, http.StatusTemporaryRedirect)

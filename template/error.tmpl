@@ -1,0 +1,6 @@
+{{ define "title" }}Error - Nonstick IdP{{end}}
+{{ template "preamble.tmpl" . }}
+<h1>Uh oh</h1>
+<p>{{ .Message }}</p>
+<a href="/">Back to safety</a>
+{{ template "epilogue.tmpl" . }}
