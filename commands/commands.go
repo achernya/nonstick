@@ -43,6 +43,11 @@ var Commands = []*cli.Command{
 					}
 				},
 			},
+			&cli.BoolFlag{
+				Name:  "use_dotenv",
+				Value: false,
+				Usage: "if true, read .env files",
+			},
 		},
 	},
 }

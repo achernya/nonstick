@@ -39,6 +39,14 @@ type LoginFlow interface {
 	// that the given username has been authenticated. This
 	// function should return a URL to redirect to.
 	Authenticated(r *http.Request, username string) (string, error)
+	// RequestConsent is called after a user is authenticated to
+	// determine if the target application should be permitted to
+	// learn some information (such as username, or full name, or
+	// email).
+	RequestConsent(r *http.Request) (error)
+	// AcceptConsent is called after the user specifies they
+	// accept the requested application learn some information.
+	AcceptConsent(r *http.Request) (string, error)
 }
 
 type NoopFlow struct{}
@@ -49,6 +57,14 @@ func (*NoopFlow) PreLogin(*http.Request) (string, error) {
 
 func (*NoopFlow) Authenticated(*http.Request, string) (string, error) {
 	return "/authenticated", nil
+}
+
+func (*NoopFlow) RequestConsent(r *http.Request) (error) {
+	return nil
+}
+
+func (*NoopFlow) AcceptConsent(r *http.Request) (string, error) {
+	return "/accept", nil
 }
 
 // PamSocket implements a WebSocket-based PAM session. PAM is

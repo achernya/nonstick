@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">{{ $vue := . }}
+  <head>
+    <meta charset="UTF-8" />
+    {{ if $vue }}{{ $vue.RenderTags }}{{ end }}
+    <link rel="icon" type="image/svg+xml" href="/{{.AssetPath}}/nonstick.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nonstick IdP</title>
+    <style>
+      .logo {
+	  height: 6em;
+	  padding: 1.5em;
+	  will-change: filter;
+	  transition: filter 300ms;
+      }
+      .logo:hover {
+	  filter: drop-shadow(0 0 2em #646cffaa);
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <a href="https://github.com/achernya/nonstick" target="_blank">
+	<img src="/{{.AssetPath}}/nonstick.svg" class="logo" alt="Nonstick logo" />
+      </a>
+      <p><a href="/logout/{{.User.Provider}}">logout</a></p>
+      <p>Name: {{.User.Name}} [{{.User.LastName}}, {{.User.FirstName}}]</p>
+      <p>Email: {{.User.Email}}</p>
+      <p>NickName: {{.User.NickName}}</p>
+      <p>Location: {{.User.Location}}</p>
+      <p>AvatarURL: {{.User.AvatarURL}} <img src="{{.User.AvatarURL}}"></p>
+      <p>Description: {{.User.Description}}</p>
+      <p>UserID: {{.User.UserID}}</p>
+      <p>AccessToken: {{.User.AccessToken}}</p>
+      <p>ExpiresAt: {{.User.ExpiresAt}}</p>
+      <p>RefreshToken: {{.User.RefreshToken}}</p>
+    </div>
+  </body>
+</html>

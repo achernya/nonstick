@@ -21,7 +21,12 @@ function onConnect() {
     };
     websocket.onmessage = (event) => {
 	console.log(event.data)
-	items.value.push(JSON.parse(event.data));
+	const data = JSON.parse(event.data);
+	if (data.Type === "Redirect") {
+	    console.log("Redirecting");
+	    window.location.replace(data.Message);
+	}
+	items.value.push(data);
     };
 }
 

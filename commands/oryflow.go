@@ -1,7 +1,10 @@
 package commands
 
 import (
+	"encoding/json"
 	"net/http"
+
+	"github.com/rs/zerolog/log"
 
 	hydra "github.com/ory/hydra-client-go/v2"
 )
@@ -62,5 +65,50 @@ func (o *OryHydraFlow) Authenticated(r *http.Request, username string) (string, 
 	if err != nil {
 		return "", err
 	}
+	return acceptResp.RedirectTo, nil
+}
+
+func (o *OryHydraFlow) RequestConsent(r *http.Request) error {
+	ctx := r.Context()
+	consentChallenge := r.URL.Query().Get("consent_challenge")
+	consentResp, _, err := o.client.OAuth2API.GetOAuth2ConsentRequest(ctx).
+		ConsentChallenge(consentChallenge).
+		Execute()
+	if err != nil {
+		return err
+	}
+	if s, err := json.MarshalIndent(consentResp, "", "  "); err == nil {
+		log.Info().Msg(string(s))
+	}
+
+	// TODO(achernya): Return a structure with the requested scopes
+	return nil
+}
+
+func (o *OryHydraFlow) AcceptConsent(r *http.Request) (string, error) {
+	ctx := r.Context()
+	consentChallenge := r.URL.Query().Get("consent_challenge")
+
+	// TODO(achernya): Read this from the user's submission instead
+	consentResp, _, err := o.client.OAuth2API.GetOAuth2ConsentRequest(ctx).
+		ConsentChallenge(consentChallenge).
+		Execute()
+	if err != nil {
+		return "", err
+	}
+
+	req := hydra.NewAcceptOAuth2ConsentRequest()
+	req.SetGrantScope(consentResp.RequestedScope)
+	req.SetGrantAccessTokenAudience(consentResp.RequestedAccessTokenAudience)
+	req.SetRemember(true)
+	req.SetRememberFor(30)
+	acceptResp, _, err := o.client.OAuth2API.AcceptOAuth2ConsentRequest(ctx).
+		ConsentChallenge(consentChallenge).
+		AcceptOAuth2ConsentRequest(*req).
+		Execute()
+	if err != nil {
+		return "", err
+	}
+
 	return acceptResp.RedirectTo, nil
 }
