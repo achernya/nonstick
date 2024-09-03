@@ -42,6 +42,7 @@ func makeServer() *server {
 		ws: &PamSocket{
 			Service: "google-authenticator",
 			ConfDir: "/home/achernya/src/idp-example/pam.d/",
+			Flow: &NoopFlow{},
 			// Service: "passwd",
 			// ConfDir: "/etc/pam.d",
 		},
