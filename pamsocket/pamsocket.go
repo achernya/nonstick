@@ -29,6 +29,22 @@ type toClient struct {
 	Message string
 }
 
+type Scope struct {
+	Name string
+	Description string
+	Hidden bool
+}
+
+type ConsentInfo struct {
+	// If set, Redirect contains the URL to redirect to
+	// immediately. No consent screen needs to be shown.
+	Redirect string
+	//
+	Target string
+	//
+	Scopes []*Scope
+}
+
 type LoginFlow interface {
 	// PreLogin is run before the sign-in flow. It may conclude
 	// the sign-in flow is unnecessary, and return a URL to
@@ -43,7 +59,7 @@ type LoginFlow interface {
 	// determine if the target application should be permitted to
 	// learn some information (such as username, or full name, or
 	// email).
-	RequestConsent(r *http.Request) (error)
+	RequestConsent(r *http.Request) (*ConsentInfo, error)
 	// AcceptConsent is called after the user specifies they
 	// accept the requested application learn some information.
 	AcceptConsent(r *http.Request) (string, error)
@@ -59,8 +75,10 @@ func (*NoopFlow) Authenticated(*http.Request, string) (string, error) {
 	return "/authenticated", nil
 }
 
-func (*NoopFlow) RequestConsent(r *http.Request) (error) {
-	return nil
+func (*NoopFlow) RequestConsent(r *http.Request) (*ConsentInfo, error) {
+	return &ConsentInfo{
+		Redirect: "/consented",
+	}, nil
 }
 
 func (*NoopFlow) AcceptConsent(r *http.Request) (string, error) {

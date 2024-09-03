@@ -199,6 +199,30 @@ func serve(c *cli.Context) error {
 		idpLogin(w, r)
 	})
 	r.HandleFunc("/consent", func(w http.ResponseWriter, r *http.Request) {
+		info, err := flow.RequestConsent(r)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to accept consent")
+			respondWithError(w, r, err.Error())
+			return
+		}
+		if info.Redirect != "" {
+			http.Redirect(w, r, info.Redirect, http.StatusTemporaryRedirect)
+			return
+		}
+		merged := struct {
+			*vueglue.VueGlue
+			CsrfField template.HTML
+			Info *pamsocket.ConsentInfo
+		}{
+			vue,
+			csrf.TemplateField(r),
+			info,
+		}
+		if err := t.ExecuteTemplate(w, "consent.tmpl", merged); err != nil {
+			log.Fatal().Err(err).Msg("Could not execute template")
+		}
+	}).Methods("GET")
+	r.HandleFunc("/consent", func(w http.ResponseWriter, r *http.Request) {
 		redirect, err := flow.AcceptConsent(r)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to accept consent")
@@ -206,12 +230,12 @@ func serve(c *cli.Context) error {
 			return
 		}
 		http.Redirect(w, r, redirect, http.StatusTemporaryRedirect)
-	})
+	}).Methods("POST")
 
 	// User management application URL handlers
 	if flowArg == "hydra" {
 		openidConnect, err := openidConnect.New(os.Getenv("OPENID_CONNECT_KEY"), os.Getenv("OPENID_CONNECT_SECRET"),
-			"http://"+outboundIP().String()+":"+port+"/auth/openid-connect/callback", os.Getenv("OPENID_CONNECT_DISCOVERY_URL"))
+			"http://"+outboundIP().String()+":"+port+"/auth/openid-connect/callback", os.Getenv("OPENID_CONNECT_DISCOVERY_URL"), "profile")
 		if err != nil {
 			log.Fatal().Err(err).Msg("Failed to set up OpenID Connect for Hydra")
 		}

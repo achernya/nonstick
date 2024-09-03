@@ -1,0 +1,18 @@
+{{ define "title" }}Consent - Nonstick IdP{{end}}
+{{ template "preamble.tmpl" . }}
+<h1>Nonstick IdP</h1>
+<h2>{{ .Info.Target }} would like to access your account</h2>
+<form method="post">
+{{ .CsrfField }}
+{{ range $scope := .Info.Scopes }}
+<div>
+<input type="{{ if $scope.Hidden }}hidden{{ else }}checkbox{{ end }}" id="{{ $scope.Name }}" name="{{ $scope.Name }}" {{ if not $scope.Hidden }}checked{{ end }}/>
+{{ if not $scope.Hidden }}
+<label for="{{ $scope.Name }}">{{ $scope.Description }}</label>
+{{ end }}
+</div>
+{{ end }}
+<input type="submit" name="consent" value="Deny">
+<input type="submit" name="consent" value="Accept">
+</form>
+{{ template "epilogue.tmpl" . }}
