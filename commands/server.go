@@ -147,6 +147,14 @@ func (s *server) registerUrls(csrfSecret []byte) error {
 		})
 	}
 
+	// Pretty 404 pages
+	s.router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		s.renderTemplate("error", map[string]interface{}{
+			"Message": "404 Not found",
+		}, w)
+	})
+	
 	return nil
 }
 
