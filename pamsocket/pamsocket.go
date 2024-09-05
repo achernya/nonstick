@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
-        "github.com/msteinert/pam/v2"
+	"github.com/msteinert/pam/v2"
 	"github.com/rs/zerolog/log"
 )
 
@@ -30,9 +30,9 @@ type toClient struct {
 }
 
 type Scope struct {
-	Name string
+	Name        string
 	Description string
-	Hidden bool
+	Hidden      bool
 }
 
 type ConsentInfo struct {
@@ -63,6 +63,12 @@ type LoginFlow interface {
 	// AcceptConsent is called after the user specifies they
 	// accept the requested application learn some information.
 	AcceptConsent(r *http.Request) (string, error)
+	// SupportsOidc returns true if this login flow is OpenID
+	// Connect capable, and false otherwise. This is primarily
+	// used for testing, wher the NoopFlow indicates it does not
+	// support OIDC so that the client-side app will not register
+	// its URL handlers.
+	SupportsOidc() bool
 }
 
 type NoopFlow struct{}
@@ -84,6 +90,8 @@ func (*NoopFlow) RequestConsent(r *http.Request) (*ConsentInfo, error) {
 func (*NoopFlow) AcceptConsent(r *http.Request) (string, error) {
 	return "/accept", nil
 }
+
+func (*NoopFlow) SupportsOidc() bool { return false }
 
 // PamSocket implements a WebSocket-based PAM session. PAM is
 // transactional, so running it over a WebSocket guarantees that all
@@ -166,7 +174,7 @@ func (s *session) RespondPAM(style pam.Style, m string) (string, error) {
 	case pam.PromptEchoOff:
 		fallthrough
 	case pam.PromptEchoOn:
-		response := <- s.clientMsgs
+		response := <-s.clientMsgs
 		return response.Input, nil
 	default:
 	}
@@ -175,14 +183,14 @@ func (s *session) RespondPAM(style pam.Style, m string) (string, error) {
 
 func (s *session) writeErr(message string) {
 	s.conn.WriteJSON(toClient{
-		Type: "Error",
+		Type:    "Error",
 		Message: message,
 	})
 }
 
 var upgrader = websocket.Upgrader{
-    ReadBufferSize:  1024,
-    WriteBufferSize: 1024,
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
 }
 
 func (p *PamSocket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -195,10 +203,10 @@ func (p *PamSocket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 
 	s := &session{
-		conn: conn,
+		conn:       conn,
 		clientMsgs: make(chan fromClient, 1),
 	}
-	
+
 	redirect, err := p.Flow.PreLogin(r)
 	if err != nil {
 		s.writeErr(err.Error())
@@ -206,15 +214,15 @@ func (p *PamSocket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if redirect != "" {
 		conn.WriteJSON(toClient{
-			Type: "Redirect",
+			Type:    "Redirect",
 			Message: redirect,
 		})
 		return
 	}
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	
+
 	go s.readFromClient(ctx, conn)
 
 	// Start the PAM conversation, with no username provided. PAM
@@ -240,14 +248,14 @@ func (p *PamSocket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Info().Msgf("Authenticated %q", username)
-	
+
 	redirect, err = p.Flow.Authenticated(r, username)
 	if err != nil {
 		s.writeErr(err.Error())
 		return
 	}
 	conn.WriteJSON(toClient{
-		Type: "Redirect",
+		Type:    "Redirect",
 		Message: redirect,
 	})
 	log.Info().Msgf("Sent redirect for %q", username)

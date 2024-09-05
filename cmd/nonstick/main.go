@@ -5,8 +5,8 @@ import (
 	"runtime/debug"
 
 	"github.com/achernya/nonstick/commands"
-	"github.com/urfave/cli/v2"
 	"github.com/rs/zerolog/log"
+	"github.com/urfave/cli/v2"
 )
 
 func main() {
@@ -23,6 +23,6 @@ func main() {
 	app.Commands = commands.Commands
 
 	if err := app.Run(os.Args); err != nil {
-		log.Error().Err(err)
+		log.Error().Err(err).Msg("Command failed")
 	}
 }

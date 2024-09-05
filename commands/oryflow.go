@@ -122,22 +122,22 @@ func (o *OryHydraFlow) RequestConsent(r *http.Request) (*pamsocket.ConsentInfo, 
 		switch element {
 		case "openid":
 			result.Scopes = append(result.Scopes, &pamsocket.Scope{
-				Name: "scope." + element,
+				Name:   "scope." + element,
 				Hidden: true,
 			})
 		case "profile":
 			result.Scopes = append(result.Scopes, &pamsocket.Scope{
-				Name: "scope." + element,
+				Name:        "scope." + element,
 				Description: "Access your first and last name",
-			})			
+			})
 		case "email":
 			result.Scopes = append(result.Scopes, &pamsocket.Scope{
-				Name: "scope." + element,
+				Name:        "scope." + element,
 				Description: "Access your email address",
-			})			
+			})
 		default:
 			result.Scopes = append(result.Scopes, &pamsocket.Scope{
-				Name: "scope." + element,
+				Name:        "scope." + element,
 				Description: "(no detailed description) access to '" + element + "'",
 			})
 		}
@@ -167,3 +167,5 @@ func (o *OryHydraFlow) AcceptConsent(r *http.Request) (string, error) {
 
 	return acceptResp.RedirectTo, nil
 }
+
+func (*OryHydraFlow) SupportsOidc() bool { return true }

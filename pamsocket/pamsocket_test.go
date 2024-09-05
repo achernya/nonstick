@@ -17,7 +17,7 @@ func TestMain(m *testing.M) {
 
 type socket struct {
 	listener net.Listener
-	port int
+	port     int
 }
 
 func makeSocket() socket {
@@ -27,12 +27,12 @@ func makeSocket() socket {
 	}
 	return socket{
 		listener: listener,
-		port: listener.Addr().(*net.TCPAddr).Port,
+		port:     listener.Addr().(*net.TCPAddr).Port,
 	}
 }
 
 type server struct {
-	s socket
+	s  socket
 	ws *PamSocket
 }
 
@@ -42,7 +42,7 @@ func makeServer() *server {
 		ws: &PamSocket{
 			Service: "google-authenticator",
 			ConfDir: "/home/achernya/src/idp-example/pam.d/",
-			Flow: &NoopFlow{},
+			Flow:    &NoopFlow{},
 			// Service: "passwd",
 			// ConfDir: "/etc/pam.d",
 		},
@@ -52,7 +52,7 @@ func makeServer() *server {
 	mux.Handle("/ws", s.ws)
 	go http.Serve(s.s.listener, mux)
 	return s
-	
+
 }
 
 func connect(s *server) (*websocket.Conn, *http.Response, error) {
