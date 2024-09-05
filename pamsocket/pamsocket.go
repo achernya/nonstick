@@ -3,6 +3,7 @@ package pamsocket
 import (
 	"context"
 	"net/http"
+	"os/user"
 
 	"github.com/gorilla/websocket"
 	"github.com/msteinert/pam/v2"
@@ -52,9 +53,12 @@ type LoginFlow interface {
 	// should proceed.
 	PreLogin(r *http.Request) (string, error)
 	// Authenticated is run after the sign-in flow, to indicate
-	// that the given username has been authenticated. This
-	// function should return a URL to redirect to.
-	Authenticated(r *http.Request, username string) (string, error)
+	// that the given user has been authenticated. This function
+	// should return a URL to redirect to. This accepts a
+	// `subject`, not a username, so it could be an anonymized
+	// identifier (i.e., the UID) instead of the
+	// username/email/etc. This must be a stable identifier.
+	Authenticated(r *http.Request, subject string) (string, error)
 	// RequestConsent is called after a user is authenticated to
 	// determine if the target application should be permitted to
 	// learn some information (such as username, or full name, or
@@ -247,9 +251,15 @@ func (p *PamSocket) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.writeErr("Internal error")
 		return
 	}
-	log.Info().Msgf("Authenticated %q", username)
+	userinfo, err := user.Lookup(username)
+	if err != nil {
+		log.Error().Err(err).Msg("Could not retrieve UNIX user account information")
+		s.writeErr("Internal error")
+		return
+	}
+	log.Info().Msgf("Authenticated %q (uid=%q)", username, userinfo.Uid)
 
-	redirect, err = p.Flow.Authenticated(r, username)
+	redirect, err = p.Flow.Authenticated(r, string(userinfo.Uid))
 	if err != nil {
 		s.writeErr(err.Error())
 		return

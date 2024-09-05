@@ -1,12 +1,13 @@
 package commands
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
+	"os/user"
+	"slices"
+	"strings"
 
 	"github.com/achernya/nonstick/pamsocket"
-	"github.com/rs/zerolog/log"
 
 	hydra "github.com/ory/hydra-client-go/v2"
 )
@@ -30,14 +31,38 @@ func (o *OryHydraFlow) loginReq(username string) *hydra.AcceptOAuth2LoginRequest
 	return req
 }
 
-func (o *OryHydraFlow) consentReq(consentResp *hydra.OAuth2ConsentRequest) *hydra.AcceptOAuth2ConsentRequest {
+func (o *OryHydraFlow) consentReq(consentResp *hydra.OAuth2ConsentRequest, scopes []string) *hydra.AcceptOAuth2ConsentRequest {
 	req := hydra.NewAcceptOAuth2ConsentRequest()
-	req.SetGrantScope(consentResp.RequestedScope)
+	if scopes != nil {
+		req.SetGrantScope(scopes)
+	} else {
+		req.SetGrantScope(consentResp.RequestedScope)
+	}
 	req.SetGrantAccessTokenAudience(consentResp.RequestedAccessTokenAudience)
 	req.SetRemember(true)
 	req.SetRememberFor(3600)
 	return req
+}
 
+func (o *OryHydraFlow) fillProfile(uid string) (*hydra.AcceptOAuth2ConsentRequestSession, error) {
+	userinfo, err := user.LookupId(uid)
+	if err != nil {
+		return nil, err
+	}
+
+	fields := map[string]string{
+		"name":               userinfo.Name,
+		"preferred_username": userinfo.Username,
+	}
+	name := strings.Split(userinfo.Name, " ")
+	if len(name) == 2 {
+		fields["given_name"] = name[0]
+		fields["family_name"] = name[1]
+	}
+
+	session := hydra.NewAcceptOAuth2ConsentRequestSession()
+	session.IdToken = fields
+	return session, nil
 }
 
 func (o *OryHydraFlow) PreLogin(r *http.Request) (string, error) {
@@ -67,12 +92,12 @@ func (o *OryHydraFlow) PreLogin(r *http.Request) (string, error) {
 	return "", nil
 }
 
-func (o *OryHydraFlow) Authenticated(r *http.Request, username string) (string, error) {
+func (o *OryHydraFlow) Authenticated(r *http.Request, subject string) (string, error) {
 	ctx := r.Context()
 	loginChallenge := r.URL.Query().Get("login_challenge")
 	acceptResp, _, err := o.client.OAuth2API.AcceptOAuth2LoginRequest(ctx).
 		LoginChallenge(loginChallenge).
-		AcceptOAuth2LoginRequest(*o.loginReq(username)).
+		AcceptOAuth2LoginRequest(*o.loginReq(subject)).
 		Execute()
 	if err != nil {
 		return "", err
@@ -89,16 +114,22 @@ func (o *OryHydraFlow) RequestConsent(r *http.Request) (*pamsocket.ConsentInfo, 
 	if err != nil {
 		return nil, err
 	}
-	if s, err := json.MarshalIndent(consentResp, "", "  "); err == nil {
-		log.Info().Msg(string(s))
-	}
 	if consentResp.GetSkip() {
 		// This is a consent that has already been remembered
 		// -- no need to show the consent screen to the user
 		// again.
+		consentReq := o.consentReq(consentResp, nil)
+		if slices.Contains(consentResp.RequestedScope, "profile") {
+			session, err := o.fillProfile(consentResp.GetSubject())
+			if err != nil {
+				return nil, err
+			}
+			consentReq.SetSession(*session)
+		}
+
 		acceptResp, _, err := o.client.OAuth2API.AcceptOAuth2ConsentRequest(ctx).
 			ConsentChallenge(consentChallenge).
-			AcceptOAuth2ConsentRequest(*o.consentReq(consentResp)).
+			AcceptOAuth2ConsentRequest(*consentReq).
 			Execute()
 		if err != nil {
 			return nil, err
@@ -149,7 +180,6 @@ func (o *OryHydraFlow) AcceptConsent(r *http.Request) (string, error) {
 	ctx := r.Context()
 	consentChallenge := r.URL.Query().Get("consent_challenge")
 
-	// TODO(achernya): Read this from the user's submission instead
 	consentResp, _, err := o.client.OAuth2API.GetOAuth2ConsentRequest(ctx).
 		ConsentChallenge(consentChallenge).
 		Execute()
@@ -157,15 +187,49 @@ func (o *OryHydraFlow) AcceptConsent(r *http.Request) (string, error) {
 		return "", err
 	}
 
-	acceptResp, _, err := o.client.OAuth2API.AcceptOAuth2ConsentRequest(ctx).
-		ConsentChallenge(consentChallenge).
-		AcceptOAuth2ConsentRequest(*o.consentReq(consentResp)).
-		Execute()
-	if err != nil {
-		return "", err
+	var scopes []string
+	for key := range r.Form {
+		result, found := strings.CutPrefix(key, "scope.")
+		if !found {
+			continue
+		}
+		if r.Form.Get(key) == "on" {
+			scopes = append(scopes, result)
+		}
 	}
 
-	return acceptResp.RedirectTo, nil
+	if len(r.Form["consent"]) != 1 {
+		return "", errors.New("missing consent decision")
+	}
+	userAction := r.Form.Get("consent")
+	switch userAction {
+	case "Deny":
+		rejectResp, _, err := o.client.OAuth2API.RejectOAuth2ConsentRequest(ctx).
+			ConsentChallenge(consentChallenge).
+			Execute()
+		if err != nil {
+			return "", err
+		}
+		return rejectResp.RedirectTo, nil
+	case "Accept":
+		consentReq := o.consentReq(consentResp, scopes)
+		if slices.Contains(scopes, "profile") {
+			session, err := o.fillProfile(consentResp.GetSubject())
+			if err != nil {
+				return "", err
+			}
+			consentReq.SetSession(*session)
+		}
+		acceptResp, _, err := o.client.OAuth2API.AcceptOAuth2ConsentRequest(ctx).
+			ConsentChallenge(consentChallenge).
+			AcceptOAuth2ConsentRequest(*consentReq).
+			Execute()
+		if err != nil {
+			return "", err
+		}
+		return acceptResp.RedirectTo, nil
+	}
+	return "", errors.New("unknown consent decision")
 }
 
 func (*OryHydraFlow) SupportsOidc() bool { return true }

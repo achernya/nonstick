@@ -7,7 +7,7 @@
 {{ .CsrfField }}
 {{ range $scope := .Info.Scopes }}
 <div>
-<input type="{{ if $scope.Hidden }}hidden{{ else }}checkbox{{ end }}" id="{{ $scope.Name }}" name="{{ $scope.Name }}" {{ if not $scope.Hidden }}checked{{ end }}/>
+<input type="{{ if $scope.Hidden }}hidden{{ else }}checkbox{{ end }}" id="{{ $scope.Name }}" name="{{ $scope.Name }}" {{ if $scope.Hidden }}value="on" {{ else }}checked{{ end }}/>
 {{ if not $scope.Hidden }}
 <label for="{{ $scope.Name }}">{{ $scope.Description }}</label>
 {{ end }}

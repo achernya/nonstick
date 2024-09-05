@@ -154,7 +154,7 @@ func (s *server) registerUrls(csrfSecret []byte) error {
 			"Message": "404 Not found",
 		}, w)
 	})
-	
+
 	return nil
 }
 
