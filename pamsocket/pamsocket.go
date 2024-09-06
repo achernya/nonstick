@@ -82,17 +82,27 @@ func (*NoopFlow) PreLogin(*http.Request) (string, error) {
 }
 
 func (*NoopFlow) Authenticated(*http.Request, string) (string, error) {
-	return "/authenticated", nil
+	return "/consent", nil
 }
 
 func (*NoopFlow) RequestConsent(r *http.Request) (*ConsentInfo, error) {
 	return &ConsentInfo{
-		Redirect: "/consented",
+		Target: "idp-internal",
+		Scopes: []*Scope{
+			&Scope{
+				Name: "openid",
+				Hidden: true,
+			},
+			&Scope{
+				Name: "profile",
+				Description: "Access to your full name",
+			},
+		},
 	}, nil
 }
 
 func (*NoopFlow) AcceptConsent(r *http.Request) (string, error) {
-	return "/accept", nil
+	return "/success-but-404", nil
 }
 
 func (*NoopFlow) SupportsOidc() bool { return false }
